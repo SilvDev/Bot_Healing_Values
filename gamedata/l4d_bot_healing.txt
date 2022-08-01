@@ -1,0 +1,145 @@
+"Games"
+{
+	"#default"
+	{
+		"Functions"
+		{
+			"SurvivorBot::UseHealingItems"
+			{
+				"signature"		"SurvivorBot::UseHealingItems"
+				"callconv"		"thiscall"
+				"return"		"int"
+				"this"			"address"
+				"arguments"
+				{
+					"a1"
+					{
+						"type"	"int"
+					}
+					"a2"
+					{
+						"type"	"int"
+					}
+				}
+			}
+		}
+	}
+
+	"left4dead"
+	{
+		"Addresses"
+		{
+			/* Read value is the offset to the dword call that reads the float value "40.0" */
+			"BotHealing_FirstAid"
+			{
+				"windows"
+				{
+					"signature" "SurvivorBot::UseHealingItems"
+					"read" "608"
+				}
+				"linux"
+				{
+					"signature" "Direct_To_Data_First"
+				}
+			}
+
+			/* Read value is the offset to the dword call that reads the float value "60.0" */
+			"BotHealing_Pills"
+			{
+				"windows"
+				{
+					"signature" "SurvivorBot::UseHealingItems"
+					"read" "568"
+				}
+				"linux"
+				{
+					"signature" "Direct_To_Data_Pills"
+				}
+			}
+		}
+
+		"Signatures"
+		{
+			/*
+			* SurvivorBot::UseHealingItems(Action<SurvivorBot> *)
+			* Called by the game when deciding whether the bots should use any healing items
+			* unique string "Trying to heal a friend"
+			*/
+			"SurvivorBot::UseHealingItems"
+			{
+				"library"	"server"
+				"linux"		"@_ZN11SurvivorBot15UseHealingItemsEP6ActionIS_E"
+				"windows"	"\x2A\x2A\x2A\x2A\x2A\x8B\x2A\x8D\x2A\x2A\x2A\x2A\x2A\x8B\x2A\xE8\x2A\x2A\x2A\x2A\xD8\x2A\x2A\xDF\x2A\xF6\x2A\x2A\x74\x2A\x8B\x2A\x2A\x2A\x33"
+				/* ? ? ? ? ? 8B ? 8D ? ? ? ? ? 8B ? E8 ? ? ? ? D8 ? ? DF ? F6 ? ? 74 ? 8B ? ? ? 33 */
+			}
+
+			"Direct_To_Data_First"
+			{
+				"library"	"server"
+				"linux"		"\x00\x00\x20\x42\x54"
+				/* 00 00 20 42 54 */
+				/* This is the float value stored in the data section "40.0" */
+			}
+
+			"Direct_To_Data_Pills"
+			{
+				"library"	"server"
+				"linux"		"\x00\x00\x70\x42\x00\x00\x48"
+				/* 00 00 70 42 00 00 48 */
+				/* This is the float value stored in the data section "60.0" */
+			}
+		}
+	}
+
+	"left4dead2"
+	{
+		"Addresses"
+		{
+			/* Read value is the offset to the dword call that reads the float value "30.0" */
+			"BotHealing_FirstAid"
+			{
+				"windows"
+				{
+					"signature" "SurvivorBot::UseHealingItems"
+					"read" "573"
+				}
+				"linux"
+				{
+					"signature" "SurvivorBot::UseHealingItems"
+					"read" "1418"
+				}
+			}
+
+			/* Read value is the offset to the dword call that reads the float value "50.0" */
+			"BotHealing_Pills"
+			{
+				"windows"
+				{
+					"signature" "SurvivorBot::UseHealingItems"
+					"read" "531"
+				}
+				"linux"
+				{
+					"signature" "SurvivorBot::UseHealingItems"
+					"read" "1364"
+				}
+			}
+		}
+
+		"Signatures"
+		{
+			/*
+			* SurvivorBot::UseHealingItems(Action<SurvivorBot> *)
+			* Called by the game when deciding whether the bots should use any healing items
+			* unique string "Trying to heal a friend"
+			*/
+			"SurvivorBot::UseHealingItems"
+			{
+				"library"	"server"
+				"linux"		"@_ZN11SurvivorBot15UseHealingItemsEP6ActionIS_E"
+				"windows"	"\x2A\x2A\x2A\x2A\x2A\x2A\x53\x56\x57\x8B\x2A\x8D\x2A\x2A\x2A\x2A\x2A\x8D\x2A\x2A\x2A\x2A\x2A\xE8\x2A\x2A\x2A\x2A\xD9\x2A\xD9\x2A\xDF\x2A\xDD"
+				/* ? ? ? ? ? ? 53 56 57 8B ? 8D ? ? ? ? ? 8D ? ? ? ? ? E8 ? ? ? ? D9 ? D9 ? DF ? DD */
+			}
+		}
+	}
+}
