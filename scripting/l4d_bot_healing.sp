@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"1.0"
+#define PLUGIN_VERSION 		"2.0"
 
 /*======================================================================================
 	Plugin Info:
@@ -32,6 +32,20 @@
 ========================================================================================
 	Change Log:
 
+2.0 (19-Aug-2022)
+	- Changed the patching method to prevent crashes.
+	- Now requires "SourceScramble" extension or "Actions" extension.
+	- GameData is not requires when only use the "Actions" extension.
+
+	- Optionally uses the "Actions" extension to prevent healing until black and white.
+	- Plugin is compatible with the "Heartbeat (Revive Fix - Post Revive Options)" plugin.
+
+	- Thanks to "Forgetest" for helping and testing.
+	- Thanks to "HarryPotter" and "Toranks" for testing.
+
+1.1 (02-Aug-2022)
+	- Fix for server crashing.
+
 1.0 (01-Aug-2022)
 	- Initial release.
 
@@ -41,17 +55,34 @@
 #pragma newdecls required
 
 #include <sourcemod>
-#include <dhooks>
+
+#undef REQUIRE_EXTENSIONS
+#include <sourcescramble>
+#include <actions>
+#define REQUIRE_EXTENSIONS
+
+
 
 #define CVAR_FLAGS			FCVAR_NOTIFY
 #define GAMEDATA			"l4d_bot_healing"
 
 
 bool g_bLeft4Dead2;
-ConVar g_hCvarFirst, g_hCvarPills;
+ConVar g_hCvarMaxIncap, g_hCvarFirst, g_hCvarPills, g_hCvarDieFirst, g_hCvarDiePills;
 float g_fCvarFirst, g_fCvarPills;
-float g_fFirst, g_fPills;
-Address g_iAddressFirst, g_iAddressPills;
+bool g_bCvarDieFirst, g_bCvarDiePills;
+int g_iCvarMaxIncap;
+
+MemoryPatch g_hPatchFirst1;
+MemoryPatch g_hPatchFirst2;
+MemoryPatch g_hPatchPills1;
+MemoryPatch g_hPatchPills2;
+
+// From "Heartbeat" plugin
+bool g_bExtensionActions;
+bool g_bExtensionScramble;
+bool g_bPluginHeartbeat;
+native int Heartbeat_GetRevives(int client);
 
 
 
@@ -78,41 +109,102 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
 	}
+	MarkNativeAsOptional("Heartbeat_GetRevives");
+
 	return APLRes_Success;
+}
+
+public void OnLibraryAdded(const char[] name)
+{
+	if( strcmp(name, "l4d_heartbeat") == 0 )
+	{
+		g_bPluginHeartbeat = true;
+	}
+}
+
+public void OnLibraryRemoved(const char[] name)
+{
+	if( strcmp(name, "l4d_heartbeat") == 0 )
+	{
+		g_bPluginHeartbeat = false;
+	}
 }
 
 public void OnPluginStart()
 {
-	// GameData
-	char sPath[PLATFORM_MAX_PATH];
-	BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
-	if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"%s\".\nRead installation instructions again.\n==========", sPath);
+	// ====================
+	// Validate extensions
+	// ====================
+	g_bExtensionActions = LibraryExists("actionslib");
+	g_bExtensionScramble = GetFeatureStatus(FeatureType_Native, "MemoryPatch.CreateFromConf") == FeatureStatus_Available;
 
-	GameData hGameData = new GameData(GAMEDATA);
-	if( hGameData == null ) SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
+	if( !g_bExtensionActions && !g_bExtensionScramble )
+	{
+		SetFailState("\n==========\nMissing required extensions: \"Actions\" or \"SourceScramble\".\nRead installation instructions again.\n==========");
+	}
 
-	// First Aid
-	g_iAddressFirst = hGameData.GetAddress("BotHealing_FirstAid");
-	if( g_iAddressFirst == Address_Null ) SetFailState("Error finding the 'FirstAid' address (%d).", g_iAddressFirst);
 
-	// Pills
-	g_iAddressPills = hGameData.GetAddress("BotHealing_Pills");
-	if( g_iAddressPills == Address_Null ) SetFailState("Error finding the 'Pills' address (%d).", g_iAddressPills);
 
-	// Default values
-	g_fFirst = view_as<float>(LoadFromAddress(g_iAddressFirst, NumberType_Int32));
-	g_fPills = view_as<float>(LoadFromAddress(g_iAddressPills, NumberType_Int32));
+	// ====================
+	// Load GameData
+	// ====================
+	if( g_bExtensionScramble )
+	{
+		char sPath[PLATFORM_MAX_PATH];
+		BuildPath(Path_SM, sPath, sizeof(sPath), "gamedata/%s.txt", GAMEDATA);
+		if( FileExists(sPath) == false ) SetFailState("\n==========\nMissing required file: \"%s\".\nRead installation instructions again.\n==========", sPath);
 
-	// Detour
-	DynamicDetour hDetour = DynamicDetour.FromConf(hGameData, "SurvivorBot::UseHealingItems");
-	if( !hDetour ) SetFailState("Failed to find \"SurvivorBot::UseHealingItems\" signature.");
-	if( !hDetour.Enable(Hook_Pre, DetourUseHealingPre) ) SetFailState("Failed to detour: \"SurvivorBot::UseHealingItems\" pre.");
-	if( !hDetour.Enable(Hook_Post, DetourUseHealingPost) ) SetFailState("Failed to detour: \"SurvivorBot::UseHealingItems\" post.");
+		GameData hGameData = new GameData(GAMEDATA);
+		if( hGameData == null ) SetFailState("Failed to load \"%s.txt\" gamedata.", GAMEDATA);
 
-	delete hDetour;
-	delete hGameData;
 
+
+		// ====================
+		// Enable patches
+		// ====================
+		g_hPatchFirst1 = MemoryPatch.CreateFromConf(hGameData, "BotHealing_FirstAid_A");
+		if( !g_hPatchFirst1.Validate() ) SetFailState("Failed to validate \"BotHealing_FirstAid_A\" target.");
+		if( !g_hPatchFirst1.Enable() ) SetFailState("Failed to patch \"BotHealing_FirstAid_A\" target.");
+
+		g_hPatchFirst2 = MemoryPatch.CreateFromConf(hGameData, "BotHealing_FirstAid_B");
+		if( !g_hPatchFirst2.Validate() ) SetFailState("Failed to validate \"BotHealing_FirstAid_B\" target.");
+		if( !g_hPatchFirst2.Enable() ) SetFailState("Failed to patch \"BotHealing_FirstAid_B\" target.");
+
+		g_hPatchPills1 = MemoryPatch.CreateFromConf(hGameData, "BotHealing_Pills_A");
+		if( !g_hPatchPills1.Validate() ) SetFailState("Failed to validate \"BotHealing_Pills_A\" target.");
+		if( !g_hPatchPills1.Enable() ) SetFailState("Failed to patch \"BotHealing_Pills_A\" target.");
+
+		g_hPatchPills2 = MemoryPatch.CreateFromConf(hGameData, "BotHealing_Pills_B");
+		if( !g_hPatchPills2.Validate() ) SetFailState("Failed to validate \"BotHealing_Pills_B\" target.");
+		if( !g_hPatchPills2.Enable() ) SetFailState("Failed to patch \"BotHealing_Pills_B\" target.");
+
+
+
+		// ====================
+		// Patch memory
+		// ====================
+		// First Aid
+		StoreToAddress(g_hPatchFirst1.Address + view_as<Address>(2), GetAddressOfCell(g_fCvarFirst), NumberType_Int32);
+		StoreToAddress(g_hPatchFirst2.Address + view_as<Address>(2), GetAddressOfCell(g_fCvarFirst), NumberType_Int32);
+
+		// Pills
+		StoreToAddress(g_hPatchPills1.Address + view_as<Address>(2), GetAddressOfCell(g_fCvarPills), NumberType_Int32);
+		StoreToAddress(g_hPatchPills2.Address + view_as<Address>(2), GetAddressOfCell(g_fCvarPills), NumberType_Int32);
+	}
+
+
+
+	// ====================
 	// ConVars
+	// ====================
+	if( !g_bLeft4Dead2 )
+	{
+		g_hCvarMaxIncap = FindConVar("survivor_max_incapacitated_count");
+		g_hCvarMaxIncap.AddChangeHook(ConVarChanged_Cvars);
+	}
+
+	g_hCvarDieFirst = CreateConVar("l4d_bot_healing_die_first", "0", "0=Ignored. 1=Only allowing healing when self or target is black and white (Requires \"Actions\" extension).", CVAR_FLAGS);
+	g_hCvarDiePills = CreateConVar("l4d_bot_healing_die_pills", "0", "0=Ignored. 1=Only allowing healing or giving pills when self or target is black and white (Requires \"Actions\" extension).", CVAR_FLAGS);
 	g_hCvarFirst = CreateConVar("l4d_bot_healing_first", g_bLeft4Dead2 ? "30.0" : "40.0", "Allow bots to use First Aid when their health is below this value.", CVAR_FLAGS);
 	g_hCvarPills = CreateConVar("l4d_bot_healing_pills", g_bLeft4Dead2 ? "50.0" : "60.0", "Allow bots to use Pills or Adrenaline when their health is below this value.", CVAR_FLAGS);
 	CreateConVar("l4d_bot_healing_version", PLUGIN_VERSION, "Bot Healing Values plugin version.", FCVAR_NOTIFY|FCVAR_DONTRECORD);
@@ -120,10 +212,19 @@ public void OnPluginStart()
 
 	g_hCvarFirst.AddChangeHook(ConVarChanged_Cvars);
 	g_hCvarPills.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarDieFirst.AddChangeHook(ConVarChanged_Cvars);
+	g_hCvarDiePills.AddChangeHook(ConVarChanged_Cvars);
+}
 
-	// L4D2:
-	// PrintToServer("BotHealing: 30.0 == %f", 0x41F00000); // 30.0 // First Aid
-	// PrintToServer("BotHealing: 50.0 == %f", 0x42480000); // 50.0 // Pills
+public void OnPluginEnd()
+{
+	if( g_bExtensionScramble )
+	{
+		g_hPatchFirst1.Disable();
+		g_hPatchFirst2.Disable();
+		g_hPatchPills1.Disable();
+		g_hPatchPills2.Disable();
+	}
 }
 
 public void OnConfigsExecuted()
@@ -138,22 +239,103 @@ void ConVarChanged_Cvars(Handle convar, const char[] oldValue, const char[] newV
 
 void GetCvars()
 {
+	if( !g_bLeft4Dead2 )
+		g_iCvarMaxIncap = g_hCvarMaxIncap.IntValue;
+
+	g_bCvarDieFirst = g_hCvarDieFirst.BoolValue;
+	g_bCvarDiePills = g_hCvarDiePills.BoolValue;
+
 	g_fCvarFirst = g_hCvarFirst.FloatValue;
 	g_fCvarPills = g_hCvarPills.FloatValue;
 }
 
-MRESReturn DetourUseHealingPre(int pThis, Handle hReturn, Handle hParams)
-{
-	StoreToAddress(g_iAddressFirst, view_as<int>(g_fCvarFirst), NumberType_Int32, false);
-	StoreToAddress(g_iAddressPills, view_as<int>(g_fCvarPills), NumberType_Int32, false);
 
-	return MRES_Ignored;
+
+// ====================================================================================================
+//					ACTIONS EXTENSION
+// ====================================================================================================
+public void OnActionCreated(BehaviorAction action, int actor, const char[] name)
+{
+	/* Hooking self healing action (when bot wants to heal self) */
+	if( g_bCvarDieFirst && strcmp(name, "SurvivorHealSelf") == 0 )
+		action.OnStart = OnSelfActionFirst;
+
+	/* Hooking friend healing action (when bot wants to heal someone) */
+	else if( g_bCvarDieFirst && strcmp(name, "SurvivorHealFriend") == 0 )
+		action.OnStartPost = OnFriendActionFirst;
+
+	/* Hooking take pills action (when bot wants to take pills) */
+	else if( g_bCvarDiePills && strcmp(name, "SurvivorTakePills") == 0 )
+		action.OnStart = OnSelfActionPills;
+
+	/* Hooking give pills action (when bot wants to give pills) */
+	else if( g_bCvarDiePills && strcmp(name, "SurvivorGivePillsToFriend") == 0 )
+		action.OnStartPost = OnFriendActionPills;
 }
 
-MRESReturn DetourUseHealingPost(Handle hReturn, Handle hParams)
+public Action OnSelfActionFirst(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
 {
-	StoreToAddress(g_iAddressFirst, view_as<int>(g_fFirst), NumberType_Int32, false);
-	StoreToAddress(g_iAddressPills, view_as<int>(g_fPills), NumberType_Int32, false);
+	bool allow = g_bLeft4Dead2 ? GetEntProp(actor, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(actor) : GetEntProp(actor, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
 
-	return MRES_Ignored;
+	if( !g_bExtensionScramble && allow && GetClientHealth(actor) + L4D_GetPlayerTempHealth(actor) > g_fCvarFirst )
+		allow = false;
+
+	result.type = allow ? CONTINUE : DONE;
+	return Plugin_Changed;
+}
+
+public Action OnSelfActionPills(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+{
+	bool allow = g_bLeft4Dead2 ? GetEntProp(actor, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(actor) : GetEntProp(actor, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
+
+	if( !g_bExtensionScramble && allow && GetClientHealth(actor) + L4D_GetPlayerTempHealth(actor) > g_fCvarPills )
+		allow = false;
+
+	result.type = allow ? CONTINUE : DONE;
+	return Plugin_Changed;
+}
+
+public Action OnFriendActionFirst(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+{
+	int target = action.Get(0x34) & 0xFFF;
+	bool allow = g_bLeft4Dead2 ? GetEntProp(target, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(target) : GetEntProp(target, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
+
+	if( !g_bExtensionScramble && allow && GetClientHealth(target) + L4D_GetPlayerTempHealth(target) > g_fCvarFirst )
+		allow = false;
+
+	result.type = allow ? CONTINUE : DONE;
+	return Plugin_Changed;
+}
+
+public Action OnFriendActionPills(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
+{
+	int target = action.Get(0x34) & 0xFFF;
+	bool allow = g_bLeft4Dead2 ? GetEntProp(target, Prop_Send, "m_bIsOnThirdStrike") == 1 : (g_bPluginHeartbeat ? Heartbeat_GetRevives(target) : GetEntProp(target, Prop_Send, "m_currentReviveCount")) >= g_iCvarMaxIncap;
+
+	if( !g_bExtensionScramble && allow && GetClientHealth(target) + L4D_GetPlayerTempHealth(target) > g_fCvarPills )
+		allow = false;
+
+	result.type = allow ? CONTINUE : DONE;
+	return Plugin_Changed;
+}
+
+
+
+// ====================================================================================================
+//					STOCK
+// ====================================================================================================
+stock int L4D_GetPlayerTempHealth(int client)
+{
+	static ConVar painPillsDecayCvar;
+	if (painPillsDecayCvar == null)
+	{
+		painPillsDecayCvar = FindConVar("pain_pills_decay_rate");
+		if (painPillsDecayCvar == null)
+		{
+			return -1;
+		}
+	}
+
+	int tempHealth = RoundToCeil(GetEntPropFloat(client, Prop_Send, "m_healthBuffer") - ((GetGameTime() - GetEntPropFloat(client, Prop_Send, "m_healthBufferTime")) * painPillsDecayCvar.FloatValue)) - 1;
+	return tempHealth < 0 ? 0 : tempHealth;
 }

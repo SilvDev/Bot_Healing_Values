@@ -1,59 +1,72 @@
 "Games"
 {
-	"#default"
-	{
-		"Functions"
-		{
-			"SurvivorBot::UseHealingItems"
-			{
-				"signature"		"SurvivorBot::UseHealingItems"
-				"callconv"		"thiscall"
-				"return"		"int"
-				"this"			"address"
-				"arguments"
-				{
-					"a1"
-					{
-						"type"	"int"
-					}
-					"a2"
-					{
-						"type"	"int"
-					}
-				}
-			}
-		}
-	}
-
 	"left4dead"
 	{
-		"Addresses"
+		"MemPatches"
 		{
-			/* Read value is the offset to the dword call that reads the float value "40.0" */
-			"BotHealing_FirstAid"
+			"BotHealing_FirstAid_A"
 			{
+				"signature"		"SurvivorBot::UseHealingItems"
 				"windows"
 				{
-					"signature" "SurvivorBot::UseHealingItems"
-					"read" "608"
+					"offset"	"25Eh"
+					"verify"	"\xD8\x1D"
+					"patch"		"\xD8\x1D\x90\x90\x90\x90"
 				}
 				"linux"
 				{
-					"signature" "Direct_To_Data_First"
+					"offset"	"35Bh"
+					"verify"	"\xD9\x83"
+					"patch"		"\xD9\x05\x90\x90\x90\x90"
+				}
+			}
+			"BotHealing_FirstAid_B"
+			{
+				"signature"		"SurvivorBot::UseHealingItems"
+				"windows"
+				{
+					"offset"	"3F0h"
+					"verify"	"\xD9\x05"
+					"patch"		"\xD9\x05\x90\x90\x90\x90"
+				}
+				"linux"
+				{
+					"offset"	"3E3h"
+					"verify"	"\xD9\x83"
+					"patch"		"\xD9\x05\x90\x90\x90\x90"
 				}
 			}
 
-			/* Read value is the offset to the dword call that reads the float value "60.0" */
-			"BotHealing_Pills"
+			"BotHealing_Pills_A"
 			{
+				"signature"		"SurvivorBot::UseHealingItems"
 				"windows"
 				{
-					"signature" "SurvivorBot::UseHealingItems"
-					"read" "568"
+					"offset"	"236h"
+					"verify"	"\xD9\x05"
+					"patch"		"\xD8\x1D\x90\x90\x90\x90"
 				}
 				"linux"
 				{
-					"signature" "Direct_To_Data_Pills"
+					"offset"	"341h"
+					"verify"	"\xD9\x83"
+					"patch"		"\xD9\x05\x90\x90\x90\x90"
+				}
+			}
+			"BotHealing_Pills_B"
+			{
+				"signature"		"SurvivorBot::UseHealingItems"
+				"windows"
+				{
+					"offset"	"43Dh"
+					"verify"	"\xD8\x1D"
+					"patch"		"\xD8\x1D\x90\x90\x90\x90"
+				}
+				"linux"
+				{
+					"offset"	"421h"
+					"verify"	"\xD9\x83"
+					"patch"		"\xD9\x05\x90\x90\x90\x90"
 				}
 			}
 		}
@@ -72,56 +85,76 @@
 				"windows"	"\x2A\x2A\x2A\x2A\x2A\x8B\x2A\x8D\x2A\x2A\x2A\x2A\x2A\x8B\x2A\xE8\x2A\x2A\x2A\x2A\xD8\x2A\x2A\xDF\x2A\xF6\x2A\x2A\x74\x2A\x8B\x2A\x2A\x2A\x33"
 				/* ? ? ? ? ? 8B ? 8D ? ? ? ? ? 8B ? E8 ? ? ? ? D8 ? ? DF ? F6 ? ? 74 ? 8B ? ? ? 33 */
 			}
-
-			"Direct_To_Data_First"
-			{
-				"library"	"server"
-				"linux"		"\x00\x00\x20\x42\x54"
-				/* 00 00 20 42 54 */
-				/* This is the float value stored in the data section "40.0" */
-			}
-
-			"Direct_To_Data_Pills"
-			{
-				"library"	"server"
-				"linux"		"\x00\x00\x70\x42\x00\x00\x48"
-				/* 00 00 70 42 00 00 48 */
-				/* This is the float value stored in the data section "60.0" */
-			}
 		}
 	}
 
 	"left4dead2"
 	{
-		"Addresses"
+		"MemPatches"
 		{
-			/* Read value is the offset to the dword call that reads the float value "30.0" */
-			"BotHealing_FirstAid"
+			"BotHealing_FirstAid_A"
 			{
+				"signature"		"SurvivorBot::UseHealingItems"
 				"windows"
 				{
-					"signature" "SurvivorBot::UseHealingItems"
-					"read" "573"
+					"offset"	"23Bh"
+					"verify"	"\x10\x05"
+					"patch"		"\x10\x05\x90\x90\x90\x90"
 				}
 				"linux"
 				{
-					"signature" "SurvivorBot::UseHealingItems"
-					"read" "1418"
+					"offset"	"203h"
+					"verify"	"\x2F\x25"
+					"patch"		"\x2F\x25\x90\x90\x90\x90"
+				}
+			}
+			"BotHealing_FirstAid_B"
+			{
+				"signature"		"SurvivorBot::UseHealingItems"
+				"windows"
+				{
+					"offset"	"3D8h"
+					"verify"	"\x10\x05"
+					"patch"		"\x10\x05\x90\x90\x90\x90"
+				}
+				"linux"
+				{
+					"offset"	"588h"
+					"verify"	"\x10\x05"
+					"patch"		"\x10\x05\x90\x90\x90\x90"
 				}
 			}
 
-			/* Read value is the offset to the dword call that reads the float value "50.0" */
-			"BotHealing_Pills"
+			"BotHealing_Pills_A"
 			{
+				"signature"		"SurvivorBot::UseHealingItems"
 				"windows"
 				{
-					"signature" "SurvivorBot::UseHealingItems"
-					"read" "531"
+					"offset"	"211h"
+					"verify"	"\xD9\x05"
+					"patch"		"\xD9\x05\x90\x90\x90\x90"
 				}
 				"linux"
 				{
-					"signature" "SurvivorBot::UseHealingItems"
-					"read" "1364"
+					"offset"	"428h"
+					"verify"	"\x10\x0D"
+					"patch"		"\x10\x0D\x90\x90\x90\x90"
+				}
+			}
+			"BotHealing_Pills_B"
+			{
+				"signature"		"SurvivorBot::UseHealingItems"
+				"windows"
+				{
+					"offset"	"457h"
+					"verify"	"\xD9\x05"
+					"patch"		"\xD9\x05\x90\x90\x90\x90"
+				}
+				"linux"
+				{
+					"offset"	"552h"
+					"verify"	"\x10\x15"
+					"patch"		"\x10\x15\x90\x90\x90\x90"
 				}
 			}
 		}
