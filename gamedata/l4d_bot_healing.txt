@@ -103,7 +103,7 @@
 				}
 				"linux"
 				{
-					"offset"	"203h"
+					"offset"	"20Ah"
 					"verify"	"\x2F\x25"
 					"patch"		"\x2F\x25\x90\x90\x90\x90"
 				}

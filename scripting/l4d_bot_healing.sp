@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.0"
+#define PLUGIN_VERSION 		"2.1"
 
 /*======================================================================================
 	Plugin Info:
@@ -32,10 +32,14 @@
 ========================================================================================
 	Change Log:
 
+2.1 (20-Aug-2022)
+	- Fixed the plugin not working on L4D2 Linux. GameData file has been updated.
+	- Optimized the "Actions" part of the plugin.
+
 2.0 (19-Aug-2022)
 	- Changed the patching method to prevent crashes.
 	- Now requires "SourceScramble" extension or "Actions" extension.
-	- GameData is not requires when only use the "Actions" extension.
+	- GameData is not required when only use the "Actions" extension.
 
 	- Optionally uses the "Actions" extension to prevent healing until black and white.
 	- Plugin is compatible with the "Heartbeat (Revive Fix - Post Revive Options)" plugin.
@@ -109,6 +113,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 		strcopy(error, err_max, "Plugin only supports Left 4 Dead 1 & 2.");
 		return APLRes_SilentFailure;
 	}
+
 	MarkNativeAsOptional("Heartbeat_GetRevives");
 
 	return APLRes_Success;
@@ -256,21 +261,31 @@ void GetCvars()
 // ====================================================================================================
 public void OnActionCreated(BehaviorAction action, int actor, const char[] name)
 {
-	/* Hooking self healing action (when bot wants to heal self) */
-	if( g_bCvarDieFirst && strcmp(name, "SurvivorHealSelf") == 0 )
-		action.OnStart = OnSelfActionFirst;
+    // Validate actor
+	if( actor > MaxClients || (!g_bCvarDieFirst && !g_bCvarDiePills) )
+		return;
 
-	/* Hooking friend healing action (when bot wants to heal someone) */
-	else if( g_bCvarDieFirst && strcmp(name, "SurvivorHealFriend") == 0 )
-		action.OnStartPost = OnFriendActionFirst;
+	if( GetClientTeam(actor) != 2 )
+		return;
 
-	/* Hooking take pills action (when bot wants to take pills) */
-	else if( g_bCvarDiePills && strcmp(name, "SurvivorTakePills") == 0 )
-		action.OnStart = OnSelfActionPills;
+	if( strncmp(name, "Survivor", 8) == 0 )
+	{
+		/* Hooking self healing action (when bot wants to heal self) */
+		if( g_bCvarDieFirst && strcmp(name[8], "HealSelf") == 0 )
+			action.OnStart = OnSelfActionFirst;
 
-	/* Hooking give pills action (when bot wants to give pills) */
-	else if( g_bCvarDiePills && strcmp(name, "SurvivorGivePillsToFriend") == 0 )
-		action.OnStartPost = OnFriendActionPills;
+		/* Hooking friend healing action (when bot wants to heal someone) */
+		else if( g_bCvarDieFirst && strcmp(name[8], "HealFriend") == 0 )
+			action.OnStartPost = OnFriendActionFirst;
+
+		/* Hooking take pills action (when bot wants to take pills) */
+		else if( g_bCvarDiePills && strcmp(name[8], "TakePills") == 0 )
+			action.OnStart = OnSelfActionPills;
+
+		/* Hooking give pills action (when bot wants to give pills) */
+		else if( g_bCvarDiePills && strcmp(name[8], "GivePillsToFriend") == 0 )
+			action.OnStartPost = OnFriendActionPills;
+	}
 }
 
 public Action OnSelfActionFirst(BehaviorAction action, int actor, BehaviorAction priorAction, ActionResult result)
@@ -327,10 +342,10 @@ public Action OnFriendActionPills(BehaviorAction action, int actor, BehaviorActi
 stock int L4D_GetPlayerTempHealth(int client)
 {
 	static ConVar painPillsDecayCvar;
-	if (painPillsDecayCvar == null)
+	if( painPillsDecayCvar == null )
 	{
 		painPillsDecayCvar = FindConVar("pain_pills_decay_rate");
-		if (painPillsDecayCvar == null)
+		if( painPillsDecayCvar == null )
 		{
 			return -1;
 		}
