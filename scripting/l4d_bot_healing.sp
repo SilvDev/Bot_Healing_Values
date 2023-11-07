@@ -18,7 +18,7 @@
 
 
 
-#define PLUGIN_VERSION 		"2.2"
+#define PLUGIN_VERSION 		"2.3"
 
 /*======================================================================================
 	Plugin Info:
@@ -31,6 +31,9 @@
 
 ========================================================================================
 	Change Log:
+
+2.3 (07-Nov-2023)
+	- Fixed not deleting 1 handle on plugin start.
 
 2.2 (25-May-2023)
 	- Fixed invalid client errors. Thanks to "Mystik Spiral" for reporting and "BHaType" for information.
@@ -186,6 +189,8 @@ public void OnPluginStart()
 		g_hPatchPills2 = MemoryPatch.CreateFromConf(hGameData, "BotHealing_Pills_B");
 		if( !g_hPatchPills2.Validate() ) SetFailState("Failed to validate \"BotHealing_Pills_B\" target.");
 		if( !g_hPatchPills2.Enable() ) SetFailState("Failed to patch \"BotHealing_Pills_B\" target.");
+
+		delete hGameData;
 
 
 
